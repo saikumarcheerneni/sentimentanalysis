@@ -59,16 +59,24 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
 # -----------------------------
 # ROUTES
 # -----------------------------
-@router.post("/token")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = authenticate_user(form_data.username, form_data.password)
+    # Ignore client_id + client_secret sent by Swagger
+    username = form_data.username
+    password = form_data.password
+
+    user = authenticate_user(username, password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect username or password"
         )
-    token = create_access_token({"sub": user["username"]})
-    return {"access_token": token, "token_type": "bearer"}
+
+    access_token = create_access_token({"sub": username})
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer"
+    }
 
 @router.get("/verify")
 async def verify_token(token: str = Depends(oauth2_scheme)):
