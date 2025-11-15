@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+transformers
+pymongo
+python-dotenv
+gunicorn
+torch
+python-jose[cryptography]
+passlib[bcrypt]
+python-jose
+azure-storage-blob
