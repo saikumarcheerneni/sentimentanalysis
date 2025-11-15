@@ -7,25 +7,14 @@ import os
 
 router = APIRouter()
 
-# -----------------------------
-# CONFIG
-# -----------------------------
 SECRET_KEY = os.getenv("SECRET_KEY", "super_secret_key_please_change")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# Use pbkdf2_sha256 only (Azure-safe)
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
-# -----------------------------
-# STATIC USER (NO HASHING AT STARTUP)
-# Generate pbkdf2 hash using:
-# from passlib.context import CryptContext
-# pwd = CryptContext(schemes=["pbkdf2_sha256"])
-# print(pwd.hash("1234"))
-# -----------------------------
 fake_users_db = {
     "saiku": {
         "username": "saiku",
@@ -33,9 +22,6 @@ fake_users_db = {
     }
 }
 
-# -----------------------------
-# HELPERS
-# -----------------------------
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
@@ -57,10 +43,10 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
 
 
 # -----------------------------
-# ROUTES
+# LOGIN ROUTE  (RESTORED)
 # -----------------------------
+@router.post("/token")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    # Ignore client_id + client_secret sent by Swagger
     username = form_data.username
     password = form_data.password
 
@@ -71,12 +57,10 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             detail="Incorrect username or password"
         )
 
-    access_token = create_access_token({"sub": username})
+    token = create_access_token({"sub": username})
 
-    return {
-        "access_token": access_token,
-        "token_type": "bearer"
-    }
+    return {"access_token": token, "token_type": "bearer"}
+
 
 @router.get("/verify")
 async def verify_token(token: str = Depends(oauth2_scheme)):
