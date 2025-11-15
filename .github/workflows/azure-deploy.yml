@@ -1,5 +1,8 @@
 name: Deploy to Azure Web App (Docker)
 
+name: Azure Login
+uses: Azure/login@v2.3.0
+
 on:
   push:
     branches:
