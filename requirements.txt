@@ -9,3 +9,4 @@ python-jose[cryptography]
 passlib[bcrypt]
 python-jose
 azure-storage-blob
+python-multipart
