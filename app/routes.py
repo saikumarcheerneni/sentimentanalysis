@@ -94,17 +94,26 @@ async def upload_csv(file: UploadFile = File(...), username: str = Depends(verif
         "skipped_duplicates": skipped_count,
         "total_rows": len(df)
     }
+
 # -------------------------------------------------------------
-#  DELETE SPECIFIC TEXT FROM HISTORY
+#  DELETE A SINGLE TEXT FOR LOGGED-IN USER
 # -------------------------------------------------------------
 @router.delete("/delete_text")
 def delete_text(text: str, username: str = Depends(verify_token)):
-    deleted = collection.delete_one({"user": username, "text": text})
+    """
+    Delete one analyzed text for the current user.
 
-    if deleted.deleted_count == 0:
+    Usage:
+      DELETE /delete_text?text=I%20am%20happy
+      Header: Authorization: Bearer <token>
+    """
+    result = collection.delete_one({"user": username, "text": text})
+
+    if result.deleted_count == 0:
         raise HTTPException(
             status_code=404,
-            detail=f"No record found for text: '{text}'"
+            detail="Text not found for this user"
         )
 
-    return {"message": f"Deleted: {text}"}
+    return {"message": "Text deleted successfully", "text": text}
+
