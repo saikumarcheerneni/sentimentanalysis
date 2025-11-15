@@ -4,11 +4,14 @@ FROM python:3.10-slim
 # Set working directory
 WORKDIR /app
 
-# Copy project files
-COPY . /app
+# Copy ONLY requirements first
+COPY requirements.txt /app/requirements.txt
 
 # Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# Copy the rest of the project
+COPY . /app
 
 # Expose port
 EXPOSE 80
