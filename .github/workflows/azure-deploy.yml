@@ -5,31 +5,37 @@ on:
     branches:
       - main
 
+env:
+  REGISTRY_LOGIN_SERVER: ${{ secrets.REGISTRY_LOGIN_SERVER }}
+  REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+  REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+  WEBAPP_NAME: ${{ secrets.WEBAPP_NAME }}
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Log in to Azure Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ sentimentregistrysaiku }}
-        username: ${{ sentimentregistrysaiku }}
-        password: ${{ JdMkSp9JpgZK7IZFhOJ+Uz2M8VzKpfOmt72JY7mKlB+ACRDdMuVS }}
+      - name: Log in to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.REGISTRY_LOGIN_SERVER }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
 
-    - name: Build Docker image
-      run: |
-        docker build -t ${{ sentimentregistrysaiku.azurecr.io }}/sentiment_app:${{ github.sha }} .
+      - name: Build Docker image
+        run: |
+          docker build -t $REGISTRY_LOGIN_SERVER/sentiment_app:latest .
 
-    - name: Push Docker image to ACR
-      run: |
-        docker push ${{ sentimentregistrysaiku.azurecr.io }}/sentiment_app:${{ github.sha }}
+      - name: Push Docker image to ACR
+        run: |
+          docker push $REGISTRY_LOGIN_SERVER/sentiment_app:latest
 
-    - name: Deploy to Azure App Service
-      uses: azure/webapps-deploy@v3
-      with:
-        app-name: ${{ sentimentdockerapp }}
-        images: ${{ sentimentregistrysaiku.azurecr.io }}/sentiment_app:${{ github.sha }}
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets.WEBAPP_NAME }}
+          images: ${{ secrets.REGISTRY_LOGIN_SERVER }}/sentiment_app:latest
