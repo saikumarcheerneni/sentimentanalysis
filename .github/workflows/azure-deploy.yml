@@ -1,4 +1,4 @@
-name: Deploy Docker App to Azure
+name: Build and Deploy Docker to Azure Web App
 
 on:
   push:
@@ -10,12 +10,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Log in to Azure Web App (Publish Profile)
+      # Login to Azure Container Registry
+      - name: Login to ACR
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      # Build and push image
+      - name: Build and Push Docker Image
+        run: |
+          docker build -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/sentiment_app:latest .
+          docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/sentiment_app:latest
+
+      # Deploy to Azure Web App
+      - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
         with:
-          app-name: "sentimentdockerapp"
+          app-name: ${{ secrets.WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          images: "sentimentregistrysaiku.azurecr.io/sentiment_app:v3"
+          images: ${{ secrets.REGISTRY_LOGIN_SERVER }}/sentiment_app:latest
