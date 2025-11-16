@@ -10,4 +10,4 @@ passlib[bcrypt]
 azure-storage-blob
 python-multipart
 pandas
-
+sendgrid
