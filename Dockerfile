@@ -7,11 +7,18 @@ WORKDIR /app
 # Copy requirements first (to control caching)
 COPY requirements.txt /app/requirements.txt
 
-# Install dependencies (force reinstall to avoid Azure cache issues)
+# Install dependencies
 RUN pip install --no-cache-dir --upgrade --force-reinstall -r /app/requirements.txt
 
-# Copy entire project
+# Copy full project
 COPY . /app
+
+# Load Azure App Service ENV variables into container
+ENV SENDGRID_API_KEY=${SENDGRID_API_KEY}
+ENV SENDGRID_FROM_EMAIL=${SENDGRID_FROM_EMAIL}
+ENV APP_BASE_URL=${APP_BASE_URL}
+ENV MONGO_URI=${MONGO_URI}
+ENV SECRET_KEY=${SECRET_KEY}
 
 # Expose port
 EXPOSE 8000
