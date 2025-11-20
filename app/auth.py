@@ -124,6 +124,14 @@ async def verify_email(token: str):
     except JWTError:
         raise HTTPException(status_code=400, detail="Invalid or expired verification token")
 
+@router.post("/login")
+async def login(user: UserLogin):
+    db_user = await db_service.get_user_by_email(user.email)
+    if not db_user or not bcrypt.checkpw(user.password.encode("utf-8"), db_user["password"]):
+        raise HTTPException(status_code=401, detail="Invalid credentials.")
+    token = jwt_service.create_access_token({"email": user.email})
+    return {"access_token": token, "token_type": "bearer"}
+ 
 
 @router.post("/token")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
@@ -158,3 +166,22 @@ async def verify_token(token: str = Depends(oauth2_scheme)):
         return {"message": f"Token valid for {username}"}
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
+    
+@router.put("/profile/update")
+async def update_profile(update: UserUpdate, current_user=Depends(get_current_user)):
+    data = {}
+    if update.name: data["name"] = update.name
+    if update.email: data["email"] = update.email
+    if update.password:
+        data["password"] = bcrypt.hashpw(update.password.encode("utf-8"), bcrypt.gensalt())
+    await db_service.update_user(current_user["email"], data)
+    return {"message": "Profile updated successfully."}
+
+
+@router.post("/logout")
+async def logout(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = credentials.credentials
+    await db_service.add_to_blacklist(token)
+    return {"message": "Successfully logged out."}
