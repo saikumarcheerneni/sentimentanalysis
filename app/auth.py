@@ -315,8 +315,14 @@ async def register(user: UserCreate):
 
     token = create_email_token(user.email)
     send_verification_email(user.email, token)
+    
 
-    return {"message": "User registered. Check email to verify."}
+    return {
+    "message": "User registered successfully. Please verify email.",
+    "verification_token": token
+}
+
+    
 
 
 @router.get("/verify-email")
