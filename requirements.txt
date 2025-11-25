@@ -1,10 +1,11 @@
+numpy==1.26.4
 fastapi
 uvicorn
 transformers==4.39.3
 pymongo
 python-dotenv
 gunicorn
-torch==2.1.0+cpu
+torch==2.1.0+cpu --extra-index-url https://download.pytorch.org/whl/cpu
 python-jose[cryptography]
 passlib[bcrypt]
 azure-storage-blob
