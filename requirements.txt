@@ -1,18 +1,18 @@
 fastapi
 uvicorn
-transformers
+transformers==4.39.3
 pymongo
 python-dotenv
 gunicorn
-torch
+torch==2.1.0+cpu -f https://download.pytorch.org/whl/cpu
 python-jose[cryptography]
 passlib[bcrypt]
 azure-storage-blob
 python-multipart
-pandass
+pandas
 email-validator
 openpyxl
-azure-communication-email
+azure-communication-email==1.0.0
 tiktoken
 azure-core
 sentencepiece
