@@ -9,7 +9,7 @@ app = FastAPI(
 
 # Register routers
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
-app.include_router(sentiment_router, tags=["Sentiment"])
+app.include_router(sentiment_router)
 
 @app.get("/")
 def home():

@@ -325,7 +325,7 @@ async def register(user: UserCreate):
     
 
 
-@router.get("/verify-email")
+@router.get("/verify-email", include_in_schema=False)
 async def verify_email(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -348,6 +348,33 @@ async def verify_email(token: str):
     except JWTError:
         raise HTTPException(400, "Invalid or expired token")
 
+@router.post("/verify-email/manual")
+async def verify_email_manual(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
+        if payload.get("type") != "verification":
+            raise HTTPException(400, "Invalid verification token")
+
+        email = payload.get("sub")
+        if not email:
+            raise HTTPException(400, "Invalid email token")
+
+        result = users_collection.update_one(
+            {"email": email},
+            {"$set": {"is_verified": True}}
+        )
+
+        if result.matched_count == 0:
+            raise HTTPException(404, "User not found")
+
+        return {
+            "message": "Email verified manually.",
+            "email": email
+        }
+
+    except JWTError:
+        raise HTTPException(400, "Invalid or expired token")
 
 # -----------------------------
 # MAIN LOGIN ENDPOINT

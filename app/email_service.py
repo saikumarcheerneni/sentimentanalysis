@@ -1,42 +1,58 @@
-# app/email_service.py
+from azure.communication.email import EmailClient
 import os
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
 
-# Read variables FROM Azure App Settings correctly
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
-FROM_EMAIL = os.getenv("SENDGRID_FROM_EMAIL")
-APP_BASE_URL = os.getenv("APP_BASE_URL", "https://sentimentdockerapp.azurewebsites.net")
+conn_str = os.getenv("AZURE_COMM_EMAIL_CONNECTION_STRING")
+sender = os.getenv("AZURE_COMM_SENDER_ADDRESS")
+
+client = EmailClient.from_connection_string(conn_str)
+
+
+def send_azure_email(to_email: str, subject: str, body: str):
+    message = {
+        "senderAddress": sender,
+        "recipients": {
+            "to": [{"address": to_email}]
+        },
+        "content": {
+            "subject": subject,
+            "plainText": body
+        }
+    }
+
+    try:
+        poller = client.begin_send(message)
+        result = poller.result()
+
+        message_id = result.get("id") or result.get("messageId")
+
+        return {
+            "status": "sent",
+            "messageId": message_id
+        }
+
+    except Exception as e:
+        print("Email send failed:", e)
+        return {"status": "failed", "error": str(e)}
 
 
 def send_verification_email(to_email: str, token: str):
-    verify_url = f"{APP_BASE_URL}/auth/verify-email?token={token}"
+    subject = "Verify Your Email Address"
 
-    if not SENDGRID_API_KEY:
-        print("❌ SENDGRID_API_KEY missing in environment!")
-        print("Verification link:", verify_url)
-        return
+    body = f"""
+Hello,
 
-    subject = "Verify your Cloud Sentiment account"
-    html_content = f"""
-    <p>Hi,</p>
-    <p>Thank you for registering in <b>Cloud Sentiment API</b>.</p>
-    <p>Please verify your email:</p>
-    <p><a href="{verify_url}">Verify Email</a></p>
-    """
+Your verification code is:
 
-    message = Mail(
-        from_email=FROM_EMAIL,
-        to_emails=to_email,
+    {token}
+
+Enter this code in the app to verify your email.
+
+Thank you!
+Sentiment Analysis Cloud Platform
+"""
+
+    return send_azure_email(
+        to_email=to_email,
         subject=subject,
-        html_content=html_content,
+        body=body
     )
-
-    try:
-        sg = SendGridAPIClient(SENDGRID_API_KEY)
-        sg.send(message)
-        print(f"✅ Verification email SENT to {to_email}")
-
-    except Exception as e:
-        print("❌ Email sending failed:", e)
-        print("Verification link:", verify_url)
