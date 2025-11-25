@@ -7,18 +7,16 @@ WORKDIR /app
 # Copy requirements first (to control caching)
 COPY requirements.txt /app/requirements.txt
 
+# Use PyTorch CPU wheel index + no cache
+ENV PIP_NO_CACHE_DIR=1
+ENV PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu
+
 # Install dependencies
-RUN pip install --no-cache-dir --upgrade --force-reinstall -r /app/requirements.txt
+RUN pip install --upgrade pip && \
+    pip install -r /app/requirements.txt
 
 # Copy full project
 COPY . /app
-
-# Load Azure App Service ENV variables into container
-ENV SENDGRID_API_KEY=${SENDGRID_API_KEY}
-ENV SENDGRID_FROM_EMAIL=${SENDGRID_FROM_EMAIL}
-ENV APP_BASE_URL=${APP_BASE_URL}
-ENV MONGO_URI=${MONGO_URI}
-ENV SECRET_KEY=${SECRET_KEY}
 
 # Expose port
 EXPOSE 8000
