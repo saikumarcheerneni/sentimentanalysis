@@ -207,6 +207,9 @@ import os
 from app.models import UserCreate, UserLogin, UserUpdate
 from app.database import users_collection
 from app.email_service import send_verification_email
+from app.azure_blob import delete_user_folder
+from app.email_service import send_goodbye_email
+
 
 router = APIRouter()
 
@@ -440,3 +443,29 @@ async def update_profile(update: UserUpdate, current_user=Depends(get_current_us
 @router.post("/logout")
 async def logout(_: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     return {"message": "Logout successful (client must delete token)"}
+
+
+
+
+@router.delete("/delete-account")
+async def delete_account(current_user=Depends(get_current_user)):
+    username = current_user["username"]
+    email = current_user["email"]
+
+    # 1. Delete user record from DB
+    result = users_collection.delete_one({"username": username})
+
+    if result.deleted_count == 0:
+        raise HTTPException(404, "User not found")
+
+    # 2. Delete files from Azure Blob Storage
+    delete_user_folder(username)
+
+    # 3. Send goodbye email
+    send_goodbye_email(email)
+
+    return {
+        "message": "Account and all files deleted successfully.",
+        "status": "success"
+    }
+

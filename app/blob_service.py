@@ -125,3 +125,17 @@ def generate_report_sas(blob_name: str, expiry_minutes: int = 60):
         expiry=datetime.utcnow() + timedelta(minutes=expiry_minutes)
     )
     return f"https://{blob_service_client.account_name}.blob.core.windows.net/{container_name}/{blob_name}?{sas}"
+
+blob_service_client = BlobServiceClient.from_connection_string(AZURE_CONNECTION_STRING)
+
+
+def delete_user_folder(username: str):
+    container = blob_service_client.get_container_client(AZURE_CONTAINER)
+
+    # list all blobs under the folder
+    blobs = container.list_blobs(name_starts_with=f"{username}/")
+
+    for blob in blobs:
+        container.delete_blob(blob.name)
+
+    return True

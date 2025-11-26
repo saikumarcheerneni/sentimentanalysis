@@ -116,3 +116,23 @@ Sentiment Analysis Cloud Platform
         subject=subject,
         body=body
     )
+def send_goodbye_email(to_email: str):
+    subject = "Your Account Has Been Deleted"
+
+    body = f"""
+Hello,
+
+Your account and all associated files have been permanently deleted from our system.
+
+Thank you for using our Sentiment Analysis Cloud Platform.
+We hope to see you again in the future!
+
+Regards,
+Cloud Sentiment Platform Team
+"""
+
+    return send_azure_email(
+        to_email=to_email,
+        subject=subject,
+        body=body
+    )
