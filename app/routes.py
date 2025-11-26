@@ -12,7 +12,7 @@ from openpyxl.chart import BarChart, Reference
 from app.models import SentimentRequest, SentimentResponse
 from app.sentiment_service import analyze_text
 from datetime import datetime
-from app.database import collection, users_collection, activity_collection
+from app.database import collection, users_collection, activity_collection, files_collection
 from app.auth import oauth2_scheme, jwt, SECRET_KEY, ALGORITHM
 from app.blob_service import (
     upload_bytes,
@@ -63,6 +63,18 @@ async def upload_file(
         "size_bytes": len(content),
         "timestamp": datetime.utcnow(),
     })
+    user_doc = users_collection.find_one({"username": username})
+    email = user_doc["email"] if user_doc else None
+
+    files_collection.insert_one({
+    "file_id": file_id,
+    "username": username,
+    "email": email,
+    "filename": file.filename,
+    "blob_path": blob_path,
+    "size_bytes": len(content),
+    "uploaded_at": datetime.utcnow()
+     })
 
     return {"message": "Upload successful", "file_id": file_id}
 

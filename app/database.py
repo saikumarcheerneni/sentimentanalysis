@@ -18,3 +18,6 @@ activity_collection = db["activity_logs"]
 
 performance_collection = db["performance_logs"]
 
+files_collection = db["uploaded_files"]
+
+
