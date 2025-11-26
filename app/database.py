@@ -15,3 +15,6 @@ collection = db["results"]
 users_collection = db["users"]
 
 activity_collection = db["activity_logs"]
+
+performance_collection = db["performance_logs"]
+

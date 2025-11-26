@@ -1,4 +1,8 @@
 from fastapi import FastAPI
+import time
+from fastapi import Request
+from app.database import performance_collection
+from datetime import datetime
 from app.routes import router as sentiment_router
 from app.auth import router as auth_router 
 app = FastAPI(
@@ -13,3 +17,18 @@ app.include_router(sentiment_router)
 @app.get("/")
 def home():
     return {"message": "Welcome to the Cloud Sentiment Analysis API"}
+
+@app.middleware("http")
+async def measure_request_time(request: Request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    end = time.time()
+
+    performance_collection.insert_one({
+        "type": "backend_response",
+        "path": request.url.path,
+        "duration_ms": round((end - start) * 1000, 3),
+        "timestamp": datetime.utcnow()
+    })
+
+    return response

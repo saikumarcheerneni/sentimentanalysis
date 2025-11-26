@@ -2,6 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import StreamingResponse
 from uuid import uuid4
 import io
+import time
+import matplotlib.pyplot as plt
+import numpy as np
+from app.database import performance_collection
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, Reference
@@ -168,6 +172,8 @@ def analyze_uploaded_file(file_id: str, username: str = Depends(verify_token)):
     Analyze a previously uploaded CSV (by file_id), generate a modern Excel report
     with two sheets, upload it to Blob, and send a plain-text email with a SAS link.
     """
+    start_time = time.time()
+
     csv_blob = f"{username}/uploads/{file_id}.csv"
 
     try:
@@ -297,6 +303,18 @@ Cloud Sentiment Analysis Platform
         "neutral_pct": neu_pct,
         "timestamp": datetime.utcnow(),
     })
+
+    latency_ms = round((time.time() - start_time) * 1000, 3)
+
+    performance_collection.insert_one({
+        "type": "file_analysis_latency",
+        "username": username,
+        "file_id": file_id,
+        "total_rows": total,
+        "latency_ms": latency_ms,
+        "timestamp": datetime.utcnow()
+    })
+
     return {
         "message": "Analysis completed and summary Excel generated",
         "file_id": file_id,
@@ -349,3 +367,31 @@ def delete_summary(file_id: str, username: str = Depends(verify_token)):
     })
 
     return {"message": "Summary deleted", "file_id": file_id}
+@router.get("/performance/file_latency_violin", tags=["Performance"])
+def file_latency_violin(username: str = Depends(verify_token)):
+    """
+    Generate a violin plot showing how long each file analysis took.
+    """
+
+    docs = list(performance_collection.find({
+        "type": "file_analysis_latency",
+        "username": username
+    }))
+
+    if not docs:
+        raise HTTPException(status_code=404, detail="No latency records found")
+
+    latencies = [d["latency_ms"] for d in docs]
+
+    plt.figure(figsize=(8, 5))
+    plt.violinplot(latencies, showmeans=True, showmedians=True)
+    plt.title("File Analysis Latency Distribution (ms)")
+    plt.ylabel("Latency (ms)")
+
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png")
+    buf.seek(0)
+    plt.close()
+
+    return StreamingResponse(buf, media_type="image/png")
+

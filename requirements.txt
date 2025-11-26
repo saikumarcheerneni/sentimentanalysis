@@ -17,3 +17,5 @@ azure-communication-email==1.0.0
 azure-core
 tiktoken
 sentencepiece
+matplotlib
+
