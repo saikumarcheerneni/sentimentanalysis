@@ -367,25 +367,24 @@ def delete_summary(file_id: str, username: str = Depends(verify_token)):
     })
 
     return {"message": "Summary deleted", "file_id": file_id}
-@router.get("/performance/file_latency_violin", tags=["Performance"])
-def file_latency_violin(username: str = Depends(verify_token)):
+@router.get("/performance/global_file_latency_violin", tags=["Performance"])
+def global_file_latency_violin(username: str = Depends(verify_token)):
     """
-    Generate a violin plot showing how long each file analysis took.
+    Global violin plot showing latency distribution for ALL USERS.
     """
 
     docs = list(performance_collection.find({
-        "type": "file_analysis_latency",
-        "username": username
-    }))
+        "type": "file_analysis_latency"
+    }))  # <-- removed username filtering
 
     if not docs:
-        raise HTTPException(status_code=404, detail="No latency records found")
+        raise HTTPException(status_code=404, detail="No global latency data found")
 
     latencies = [d["latency_ms"] for d in docs]
 
     plt.figure(figsize=(8, 5))
     plt.violinplot(latencies, showmeans=True, showmedians=True)
-    plt.title("File Analysis Latency Distribution (ms)")
+    plt.title("Global File Analysis Latency Distribution (ms)")
     plt.ylabel("Latency (ms)")
 
     buf = io.BytesIO()
@@ -394,4 +393,5 @@ def file_latency_violin(username: str = Depends(verify_token)):
     plt.close()
 
     return StreamingResponse(buf, media_type="image/png")
+
 
