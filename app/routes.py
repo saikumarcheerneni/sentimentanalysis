@@ -94,7 +94,7 @@ def delete_uploaded_file(file_id: str, username: str = Depends(verify_token)):
         "timestamp": datetime.utcnow(),
     })
 
-    return {"message": "Uploaded CSV deleted", "file_id": file_id}
+    return {"message": " Your .CSV file deleted successful", "file_id": file_id}
 
 
 @router.get(
