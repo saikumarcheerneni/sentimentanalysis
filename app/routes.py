@@ -132,28 +132,6 @@ def list_files(username: str = Depends(verify_token)):
 
     return {"uploads": uploads, "summaries": summaries}
 
-
-# @router.post("/analyze", tags=["Analyze"], response_model=SentimentResponse)
-# def analyze_sentiment(request: SentimentRequest, username: str = Depends(verify_token)):
-#     """Analyze a single text (no files). Prevent duplicate text per user."""
-#     existing = collection.find_one({"user": username, "text": request.text})
-#     if existing:
-#         raise HTTPException(
-#             status_code=409, detail="Duplicate: This text is already analyzed"
-#         )
-
-#     result = analyze_text(request.text)
-
-#     collection.insert_one(
-#         {
-#             "user": username,
-#             "text": request.text,
-#             "label": result["label"],
-#             "score": result["score"],
-#         }
-#     )
-
-#     return result
 @router.post("/analyze", tags=["Analyze"], response_model=SentimentResponse)
 def analyze_sentiment(request: SentimentRequest, username: str = Depends(verify_token)):
 
@@ -190,7 +168,7 @@ def analyze_sentiment(request: SentimentRequest, username: str = Depends(verify_
 @router.get("/history", tags=["Analyze"])
 def history(username: str = Depends(verify_token)):
     """Get analysis history for the logged-in user."""
-    docs = list(collection.find({"user": username}, {"_id": 0, "user": 0}))
+    docs = list(collection.find({"user": username}, {"_id": 0, "username": 0, "email":0, "timestamp":0}))
     return {"history": docs}
 
 
@@ -200,7 +178,7 @@ def delete_text(text: str, username: str = Depends(verify_token)):
     result = collection.delete_one({"user": username, "text": text})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Text not found")
-    return {"message": "Text deleted"}
+    return {"username": username, "text": text}
 
 
 @router.post(
