@@ -21,26 +21,15 @@ from app.email_service import send_goodbye_email
 
 router = APIRouter()
 
-# -----------------------------
-# CONFIG
-# -----------------------------
 SECRET_KEY = os.getenv("SECRET_KEY", "super_secret_key_change_me")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 EMAIL_TOKEN_EXPIRE_HOURS = 24
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
-
-# OAuth2 login
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
-
-# Simple bearer scheme for logout
 bearer_scheme = HTTPBearer()
 
-
-# -----------------------------
-# PASSWORD + TOKEN HELPERS
-# -----------------------------
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
@@ -81,10 +70,6 @@ def create_email_token(email: str):
         algorithm=ALGORITHM,
     )
 
-
-# -----------------------------
-# CURRENT USER DEPENDENCY
-# -----------------------------
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     """Validates the JWT and returns the user from DB."""
     try:
@@ -100,10 +85,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         raise HTTPException(401, "User not found")
     return user
 
-
-# -----------------------------
-# ROUTES
-# -----------------------------
 @router.post("/register", status_code=201)
 async def register(user: UserCreate):
     existing = users_collection.find_one(
@@ -132,9 +113,6 @@ async def register(user: UserCreate):
     "message": "User registered successfully. Please verify email.",
     "verification_token": token
 }
-
-    
-
 
 @router.get("/verify-email", include_in_schema=False)
 async def verify_email(token: str):
@@ -186,10 +164,6 @@ async def verify_email_manual(token: str):
 
     except JWTError:
         raise HTTPException(400, "Invalid or expired token")
-
-# -----------------------------
-# MAIN LOGIN ENDPOINT
-# -----------------------------
 @router.post("/token")
 async def login(form: OAuth2PasswordRequestForm = Depends()):
     # form.username = username OR email
@@ -203,10 +177,6 @@ async def login(form: OAuth2PasswordRequestForm = Depends()):
     token = create_access_token({"sub": user["username"]})
     return {"access_token": token, "token_type": "bearer"}
 
-
-# -----------------------------
-# TOKEN VERIFICATION
-# -----------------------------
 @router.get("/verify")
 async def verify_token(token: str = Depends(oauth2_scheme)):
     try:
@@ -215,10 +185,6 @@ async def verify_token(token: str = Depends(oauth2_scheme)):
     except:
         raise HTTPException(401, "Invalid token")
 
-
-# -----------------------------
-# PROFILE UPDATE
-# -----------------------------
 @router.put("/profile/update")
 async def update_profile(update: UserUpdate, current_user=Depends(get_current_user)):
     data = {}
@@ -244,34 +210,21 @@ async def update_profile(update: UserUpdate, current_user=Depends(get_current_us
 
     return {"message": "Profile updated successfully"}
 
-
-# -----------------------------
-# LOGOUT (NO BLACKLIST – OPTIONAL)
-# -----------------------------
 @router.post("/logout")
 async def logout(_: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     return {"message": "Logout successful (client must delete token)"}
-
-
 
 
 @router.delete("/delete-account")
 async def delete_account(current_user=Depends(get_current_user)):
     username = current_user["username"]
     email = current_user["email"]
-
-    # 1. Delete user record from DB
     result = users_collection.delete_one({"username": username})
 
     if result.deleted_count == 0:
         raise HTTPException(404, "User not found")
-
-    # 2. Delete files from Azure Blob Storage
     delete_user_folder(username)
-
-    # 3. Send goodbye email
     send_goodbye_email(email)
-
     return {
         "message": "Account and all files deleted successfully.",
         "status": "success"

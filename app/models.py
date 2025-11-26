@@ -1,9 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 
-# --------------------------
-# SENTIMENT MODELS
-# --------------------------
 class SentimentRequest(BaseModel):
     text: str
 
@@ -13,10 +10,6 @@ class SentimentResponse(BaseModel):
     label: str
     score: float
 
-
-# --------------------------
-# AUTH MODELS
-# --------------------------
 class UserCreate(BaseModel):
     username: str
     email: EmailStr
@@ -24,7 +17,6 @@ class UserCreate(BaseModel):
 
 
 class UserLogin(BaseModel):
-    # You can send either username OR email here
     identifier: str  # username or email
     password: str
 

@@ -1,26 +1,7 @@
-# from transformers import pipeline
-
-# # Lazy load model to prevent Azure startup timeout
-# sentiment_model = None
-
-# def get_model():
-#     global sentiment_model
-#     if sentiment_model is None:
-#         sentiment_model = pipeline("sentiment-analysis", model="distilbert/distilbert-base-uncased-finetuned-sst-2-english")
-#     return sentiment_model
-
-# def analyze_text(text: str):
-#     """
-#     Analyze the sentiment of input text.
-#     Returns label (POSITIVE/NEGATIVE) and score.
-#     """
-#     model = get_model()
-#     result = model(text)[0]
-#     return {"label": result["label"], "score": result["score"]}
 from transformers import pipeline, AutoTokenizer
 from typing import List, Dict, Any
 
-# Lazy load the model only once (Azure optimization)
+
 sentiment_model = None
 tokenizer = None
 
@@ -46,7 +27,7 @@ def normalize_label(label: str) -> str:
     if label in ["label_2", "positive"]:
         return "POSITIVE"
 
-    return label.upper()  # fallback
+    return label.upper()  
 
 
 def get_model():

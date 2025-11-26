@@ -7,7 +7,6 @@ app = FastAPI(
     version="2.0"
 )
 
-# Register routers
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(sentiment_router)
 

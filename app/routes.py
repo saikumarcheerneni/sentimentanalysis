@@ -5,7 +5,6 @@ import io
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, Reference
-
 from app.models import SentimentRequest, SentimentResponse
 from app.sentiment_service import analyze_text
 from app.database import collection, users_collection
@@ -22,10 +21,6 @@ from app.email_service import send_azure_email
 
 router = APIRouter()
 
-
-# -------------------------------------------------------------
-#  AUTH TOKEN VERIFICATION
-# -------------------------------------------------------------
 def verify_token(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -36,10 +31,6 @@ def verify_token(token: str = Depends(oauth2_scheme)):
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-
-# =============================================================
-#   BLOCK 1 — FILE UPLOADS
-# =============================================================
 
 @router.post("/upload_file", tags=["File Uploads"], summary="Upload CSV to Blob Storage")
 async def upload_file(
@@ -108,10 +99,6 @@ def list_files(username: str = Depends(verify_token)):
     return {"uploads": uploads, "summaries": summaries}
 
 
-# =============================================================
-#   BLOCK 2 — ANALYZE (TEXT + FILE_ID)
-# =============================================================
-
 @router.post("/analyze", tags=["Analyze"], response_model=SentimentResponse)
 def analyze_sentiment(request: SentimentRequest, username: str = Depends(verify_token)):
     """Analyze a single text (no files). Prevent duplicate text per user."""
@@ -151,10 +138,6 @@ def delete_text(text: str, username: str = Depends(verify_token)):
     return {"message": "Text deleted"}
 
 
-# =============================================================
-#   ANALYZE UPLOADED FILE (GENERATE EXCEL REPORT + EMAIL)
-# =============================================================
-
 @router.post(
     "/analyze_file/{file_id}",
     tags=["Analyze"],
@@ -172,14 +155,12 @@ def analyze_uploaded_file(file_id: str, username: str = Depends(verify_token)):
     except Exception:
         raise HTTPException(status_code=404, detail="CSV not found")
 
-    # --- Read CSV ---
     df = pd.read_csv(io.BytesIO(file_bytes))
     if "text" not in df.columns:
         raise HTTPException(status_code=400, detail="CSV must contain a 'text' column")
 
     texts = df["text"].dropna().tolist()
 
-    # --- Run sentiment analysis for each row ---
     results = []
     for t in texts:
         res = analyze_text(t)
@@ -192,7 +173,6 @@ def analyze_uploaded_file(file_id: str, username: str = Depends(verify_token)):
     negative = sum(r["label"] == "NEGATIVE" for r in results)
     neutral = sum(r["label"] == "NEUTRAL" for r in results)
 
-    # Avoid division by zero
     if total == 0:
         pos_pct = neg_pct = neu_pct = 0.0
     else:
@@ -200,31 +180,22 @@ def analyze_uploaded_file(file_id: str, username: str = Depends(verify_token)):
         neg_pct = round(negative / total * 100, 2)
         neu_pct = round(neutral / total * 100, 2)
 
-    # =========================================================
-    #   Create modern Excel report with 2 sheets
-    #   Sheet1: "Report Summary" (meta + percentages + chart)
-    #   Sheet2: "Raw Data" (all individual rows)
-    # =========================================================
 
     wb = Workbook()
 
-    # --- Sheet 1: Summary ---
     ws_summary = wb.active
     ws_summary.title = "Report Summary"
 
-    # Title and meta
     ws_summary["A1"] = "Sentiment Analysis Report"
     ws_summary["A3"] = "File ID"
     ws_summary["B3"] = file_id
     ws_summary["A4"] = "Total Rows"
     ws_summary["B4"] = total
 
-    # Summary table header
     ws_summary["A6"] = "Sentiment"
     ws_summary["B6"] = "Count"
     ws_summary["C6"] = "Percentage (%)"
 
-    # Data rows
     ws_summary["A7"] = "POSITIVE"
     ws_summary["B7"] = positive
     ws_summary["C7"] = pos_pct
@@ -237,7 +208,6 @@ def analyze_uploaded_file(file_id: str, username: str = Depends(verify_token)):
     ws_summary["B9"] = neutral
     ws_summary["C9"] = neu_pct
 
-    # Create bar chart for percentages
     chart = BarChart()
     chart.title = "Sentiment Percentage Distribution"
     chart.x_axis.title = "Sentiment"
@@ -249,27 +219,20 @@ def analyze_uploaded_file(file_id: str, username: str = Depends(verify_token)):
     chart.add_data(data, titles_from_data=True)
     chart.set_categories(categories)
 
-    # Place chart near the summary table
     ws_summary.add_chart(chart, "E4")
 
-    # --- Sheet 2: Raw Data ---
     ws_data = wb.create_sheet(title="Raw Data")
     ws_data.append(["text", "label", "score"])
     for r in results:
         ws_data.append([r["text"], r["label"], r["score"]])
 
-    # Save workbook to bytes
     excel_stream = io.BytesIO()
     wb.save(excel_stream)
     excel_bytes = excel_stream.getvalue()
 
-    # Upload summary Excel to Blob
     summary_blob = f"{username}/results/{file_id}_summary.xlsx"
     upload_bytes(excel_bytes, summary_blob)
 
-    # =========================================================
-    #   Send plain-text email with SAS link (Option B)
-    # =========================================================
     user_doc = users_collection.find_one({"username": username})
     if user_doc:
         sas_link = generate_report_sas(summary_blob, expiry_minutes=60)
@@ -304,11 +267,6 @@ Cloud Sentiment Analysis Platform
         "file_id": file_id,
         "summary_available": True,
     }
-
-
-# =============================================================
-#   SUMMARY DOWNLOAD & DELETE — FILE_ID ONLY
-# =============================================================
 
 @router.get(
     "/download_summary/{file_id}",
