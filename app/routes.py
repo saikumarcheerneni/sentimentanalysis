@@ -7,7 +7,8 @@ from openpyxl import Workbook
 from openpyxl.chart import BarChart, Reference
 from app.models import SentimentRequest, SentimentResponse
 from app.sentiment_service import analyze_text
-from app.database import collection, users_collection
+from datetime import datetime
+from app.database import collection, users_collection, activity_collection
 from app.auth import oauth2_scheme, jwt, SECRET_KEY, ALGORITHM
 from app.blob_service import (
     upload_bytes,
@@ -48,6 +49,17 @@ async def upload_file(
 
     upload_bytes(content, blob_path)
 
+    # 🔹 Log this upload in MongoDB
+    activity_collection.insert_one({
+        "username": username,
+        "event": "file_uploaded",
+        "file_id": file_id,
+        "filename": file.filename,
+        "blob_path": blob_path,
+        "size_bytes": len(content),
+        "timestamp": datetime.utcnow(),
+    })
+
     return {"message": "Upload successful", "file_id": file_id}
 
 
@@ -73,6 +85,14 @@ def delete_uploaded_file(file_id: str, username: str = Depends(verify_token)):
         delete_blob(blob_path)
     except Exception:
         raise HTTPException(status_code=404, detail="File not found")
+    
+    activity_collection.insert_one({
+        "username": username,
+        "event": "file_deleted",
+        "file_id": file_id,
+        "blob_path": blob_path,
+        "timestamp": datetime.utcnow(),
+    })
 
     return {"message": "Uploaded CSV deleted", "file_id": file_id}
 
@@ -262,6 +282,21 @@ Cloud Sentiment Analysis Platform
             body=email_body,
         )
 
+    activity_collection.insert_one({
+        "username": username,
+        "event": "file_analyzed",
+        "file_id": file_id,
+        "csv_blob": csv_blob,
+        "summary_blob": summary_blob,
+        "total_rows": total,
+        "positive_count": positive,
+        "negative_count": negative,
+        "neutral_count": neutral,
+        "positive_pct": pos_pct,
+        "negative_pct": neg_pct,
+        "neutral_pct": neu_pct,
+        "timestamp": datetime.utcnow(),
+    })
     return {
         "message": "Analysis completed and summary Excel generated",
         "file_id": file_id,
@@ -304,5 +339,13 @@ def delete_summary(file_id: str, username: str = Depends(verify_token)):
         delete_blob(blob)
     except Exception:
         raise HTTPException(status_code=404, detail="Summary file not found")
+    
+    activity_collection.insert_one({
+        "username": username,
+        "event": "summary_deleted",
+        "file_id": file_id,
+        "summary_blob": blob,
+        "timestamp": datetime.utcnow(),
+    })
 
     return {"message": "Summary deleted", "file_id": file_id}

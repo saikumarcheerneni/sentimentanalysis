@@ -13,3 +13,5 @@ db = client[DB_NAME]
 collection = db["results"]  
 
 users_collection = db["users"]
+
+activity_collection = db["activity_logs"]
