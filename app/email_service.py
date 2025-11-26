@@ -62,10 +62,9 @@ from urllib.parse import quote
 
 conn_str = os.getenv("AZURE_COMM_EMAIL_CONNECTION_STRING")
 sender = os.getenv("AZURE_COMM_SENDER_ADDRESS")
-APP_BASE_URL = os.getenv("APP_BASE_URL")  # <-- MUST be set in Azure
+APP_BASE_URL = os.getenv("APP_BASE_URL")
 
 client = EmailClient.from_connection_string(conn_str)
-
 
 def send_azure_email(to_email: str, subject: str, body: str):
     message = {
@@ -90,13 +89,10 @@ def send_azure_email(to_email: str, subject: str, body: str):
 
 def send_verification_email(to_email: str, token: str):
     subject = "Verify Your Email Address"
-
-    # Encode parameters safely
-    email_encoded = quote(to_email)
     token_encoded = quote(token)
 
-    # Build verification URL
-    verify_url = f"{APP_BASE_URL}/verify?email={email_encoded}&token={token_encoded}"
+    # ⬅️ Correct verification route
+    verify_url = f"{APP_BASE_URL}/auth/verify-email?token={token_encoded}"
 
     body = f"""
 Hello 👋,
@@ -106,9 +102,10 @@ Please verify your email address by clicking the link below:
 🔗 Verify Email:
 {verify_url}
 
-If the button doesn't work, you can manually enter your verification code:
+If the link doesn't work, you can manually enter your verification code:
 
-Verification Code: {token}
+Verification Code:
+{token}
 
 Thank you for registering!
 Sentiment Analysis Cloud Platform
