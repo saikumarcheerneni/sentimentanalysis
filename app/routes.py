@@ -180,8 +180,12 @@ def analyze_sentiment(request: SentimentRequest, username: str = Depends(verify_
         "timestamp": datetime.utcnow()
     })
 
-    return result
-
+    return {
+        "text": request.text,
+        "label": result["label"],
+        "score": result["score"]
+    }
+  
 
 @router.get("/history", tags=["Analyze"])
 def history(username: str = Depends(verify_token)):
