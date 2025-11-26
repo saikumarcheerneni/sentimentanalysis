@@ -168,14 +168,14 @@ def analyze_sentiment(request: SentimentRequest, username: str = Depends(verify_
 @router.get("/history", tags=["Analyze"])
 def history(username: str = Depends(verify_token)):
     """Get analysis history for the logged-in user."""
-    docs = list(collection.find({"user": username}, {"_id": 0, "username": 0, "email":0, "timestamp":0}))
+    docs = list(collection.find({"username": username}, {"_id": 0, "username": 0, "email":0, "timestamp":0}))
     return {"history": docs}
 
 
 @router.delete("/delete_text", tags=["Analyze"])
 def delete_text(text: str, username: str = Depends(verify_token)):
     """Delete a single text analysis entry."""
-    result = collection.delete_one({"user": username, "text": text})
+    result = collection.delete_one({"username": username, "text": text})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Text not found")
     return {"username": username, "text": text}
