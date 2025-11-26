@@ -3,8 +3,6 @@ from fastapi.responses import StreamingResponse
 from uuid import uuid4
 import io
 import time
-import matplotlib.pyplot as plt
-import numpy as np
 from app.database import performance_collection
 import pandas as pd
 from openpyxl import Workbook
@@ -135,10 +133,34 @@ def list_files(username: str = Depends(verify_token)):
     return {"uploads": uploads, "summaries": summaries}
 
 
+# @router.post("/analyze", tags=["Analyze"], response_model=SentimentResponse)
+# def analyze_sentiment(request: SentimentRequest, username: str = Depends(verify_token)):
+#     """Analyze a single text (no files). Prevent duplicate text per user."""
+#     existing = collection.find_one({"user": username, "text": request.text})
+#     if existing:
+#         raise HTTPException(
+#             status_code=409, detail="Duplicate: This text is already analyzed"
+#         )
+
+#     result = analyze_text(request.text)
+
+#     collection.insert_one(
+#         {
+#             "user": username,
+#             "text": request.text,
+#             "label": result["label"],
+#             "score": result["score"],
+#         }
+#     )
+
+#     return result
 @router.post("/analyze", tags=["Analyze"], response_model=SentimentResponse)
 def analyze_sentiment(request: SentimentRequest, username: str = Depends(verify_token)):
-    """Analyze a single text (no files). Prevent duplicate text per user."""
-    existing = collection.find_one({"user": username, "text": request.text})
+
+    existing = collection.find_one({
+        "username": username,
+        "text": request.text
+    })
     if existing:
         raise HTTPException(
             status_code=409, detail="Duplicate: This text is already analyzed"
@@ -146,14 +168,17 @@ def analyze_sentiment(request: SentimentRequest, username: str = Depends(verify_
 
     result = analyze_text(request.text)
 
-    collection.insert_one(
-        {
-            "user": username,
-            "text": request.text,
-            "label": result["label"],
-            "score": result["score"],
-        }
-    )
+    user_doc = users_collection.find_one({"username": username})
+    email = user_doc["email"] if user_doc else None
+
+    collection.insert_one({
+        "username": username,
+        "email": email,
+        "text": request.text,
+        "label": result["label"],
+        "score": float(result["score"]),
+        "timestamp": datetime.utcnow()
+    })
 
     return result
 
@@ -384,6 +409,9 @@ def global_file_latency_violin(username: str = Depends(verify_token)):
     """
     Global violin plot showing latency distribution for ALL USERS.
     """
+    import matplotlib.pyplot as plt
+    import numpy as np
+
 
     docs = list(performance_collection.find({
         "type": "file_analysis_latency"
