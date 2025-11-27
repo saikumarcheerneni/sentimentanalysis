@@ -35,7 +35,7 @@ def verify_token(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
-@router.post("/upload_file", tags=["File Uploads"], summary="Upload CSV to Blob Storage")
+@router.post("/upload", tags=["File Uploads"], summary="Upload CSV to Blob Storage")
 async def upload_file(
     file: UploadFile = File(...),
     username: str = Depends(verify_token),
@@ -77,7 +77,7 @@ async def upload_file(
     return {"message": "Upload successful", "file_id": file_id}
 
 
-@router.get("/file/{file_id}", tags=["File Uploads"], summary="Get uploaded file info")
+@router.get("/file", tags=["File Uploads"], summary="Get uploaded file info")
 def get_file_info(file_id: str, username: str = Depends(verify_token)):
     """Check if an uploaded file exists for this user."""
     blob_path = f"{username}/uploads/{file_id}.csv"
@@ -90,7 +90,7 @@ def get_file_info(file_id: str, username: str = Depends(verify_token)):
     return {"file_id": file_id, "status": "Available"}
 
 
-@router.delete("/file/{file_id}", tags=["File Uploads"], summary="Delete uploaded CSV")
+@router.delete("/file", tags=["File Uploads"], summary="Delete uploaded CSV")
 def delete_uploaded_file(file_id: str, username: str = Depends(verify_token)):
     """Delete an uploaded CSV (not the summary) using file_id."""
     blob_path = f"{username}/uploads/{file_id}.csv"
@@ -112,7 +112,7 @@ def delete_uploaded_file(file_id: str, username: str = Depends(verify_token)):
 
 
 @router.get(
-    "/list_files",
+    "/list",
     tags=["File Uploads"],
     summary="List all uploaded CSV and summary files (by file_id)",
 )
@@ -172,7 +172,7 @@ def history(username: str = Depends(verify_token)):
     return {"history": docs}
 
 
-@router.delete("/delete_text", tags=["Analyze"])
+@router.delete("/delete", tags=["Analyze"])
 def delete_text(text: str, username: str = Depends(verify_token)):
     """Delete a single text analysis entry."""
     result = collection.delete_one({"username": username, "text": text})
@@ -182,7 +182,7 @@ def delete_text(text: str, username: str = Depends(verify_token)):
 
 
 @router.post(
-    "/analyze_file/{file_id}",
+    "/analyze",
     tags=["Analyze"],
     summary="Analyze an uploaded CSV by file_id and generate Excel report",
 )
@@ -341,7 +341,7 @@ Cloud Sentiment Analysis Platform
     }
 
 @router.get(
-    "/download_summary/{file_id}",
+    "/download",
     tags=["Analyze"],
     summary="Download the summary Excel by file_id",
 )
@@ -364,7 +364,7 @@ def download_summary(file_id: str, username: str = Depends(verify_token)):
 
 
 @router.delete(
-    "/delete_summary/{file_id}",
+    "/deleteresult",
     tags=["Analyze"],
     summary="Delete the summary Excel by file_id",
 )
@@ -386,7 +386,7 @@ def delete_summary(file_id: str, username: str = Depends(verify_token)):
     })
 
     return {"message": "Summary deleted", "file_id": file_id}
-@router.get("/performance/global_file_latency_violin", tags=["Performance"])
+@router.get("/performance", tags=["Performance"])
 def global_file_latency_violin(username: str = Depends(verify_token)):
     """
     Global violin plot showing latency distribution for ALL USERS.

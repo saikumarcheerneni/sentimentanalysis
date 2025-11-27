@@ -114,7 +114,7 @@ async def register(user: UserCreate):
     "verification_token": token
 }
 
-@router.get("/verify-email", include_in_schema=False)
+@router.get("/verify", include_in_schema=False)
 async def verify_email(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -137,7 +137,7 @@ async def verify_email(token: str):
     except JWTError:
         raise HTTPException(400, "Invalid or expired token")
 
-@router.post("/verify-email/manual")
+@router.post("/manual")
 async def verify_email_manual(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -185,7 +185,7 @@ async def verify_token(token: str = Depends(oauth2_scheme)):
     except:
         raise HTTPException(401, "Invalid token")
 
-@router.put("/profile/update")
+@router.put("/update")
 async def update_profile(update: UserUpdate, current_user=Depends(get_current_user)):
     data = {}
 
@@ -215,7 +215,7 @@ async def logout(_: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     return {"message": "Logout successful (client must delete token)"}
 
 
-@router.delete("/delete-account")
+@router.delete("/delete")
 async def delete_account(current_user=Depends(get_current_user)):
     username = current_user["username"]
     email = current_user["email"]
