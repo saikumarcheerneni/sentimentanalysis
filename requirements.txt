@@ -18,4 +18,6 @@ azure-core
 tiktoken
 sentencepiece
 matplotlib
+beautifulsoup4
+requests
 

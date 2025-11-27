@@ -416,4 +416,58 @@ def global_file_latency_violin(username: str = Depends(verify_token)):
 
     return StreamingResponse(buf, media_type="image/png")
 
+from app.url_scraper import extract_reviews_from_url
+@router.post("/analyze_url", tags=["Analyze"])
+def analyze_from_url(url: str, username: str = Depends(verify_token)):
+    """
+    Scrape product reviews from URL and analyze their sentiment.
+    """
 
+    reviews = extract_reviews_from_url(url)
+
+    if not reviews:
+        raise HTTPException(400, "Could not extract any reviews from this URL")
+
+    analyzed = []
+    pos = neg = neu = 0
+
+    for rev in reviews:
+        res = analyze_text(rev)
+
+        label = res["label"].upper()
+
+        if label.startswith("POS"):
+            pos += 1
+        elif label.startswith("NEG"):
+            neg += 1
+        else:
+            neu += 1
+
+        analyzed.append({
+            "review": rev,
+            "label": label,
+            "score": float(res["score"])
+        })
+
+    total = len(analyzed)
+
+    # Log activity
+    activity_collection.insert_one({
+        "username": username,
+        "event": "url_analyzed",
+        "url": url,
+        "total_reviews": total,
+        "positive": pos,
+        "negative": neg,
+        "neutral": neu,
+        "timestamp": datetime.utcnow(),
+    })
+
+    return {
+        "message": "URL analysis completed",
+        "total_reviews": total,
+        "positive": pos,
+        "negative": neg,
+        "neutral": neu,
+        "reviews": analyzed,
+    }
