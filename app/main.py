@@ -4,14 +4,16 @@ from fastapi import Request
 from app.database import performance_collection
 from datetime import datetime
 from app.routes import router as sentiment_router
+from app.extraction import router as extraction_router
 from app.auth import router as auth_router 
 app = FastAPI(
-    title="Cloud Sentiment API",
+    title="Cloud Sentiment API",    
     description="A RESTful API for sentiment analysis using Hugging Face + Azure Blob + JWT authentication.",
     version="2.0"
 )
 
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+app.include_router(extraction_router, tags=["Review Extraction"])
 app.include_router(sentiment_router)
 
 @app.get("/")

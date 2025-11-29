@@ -6,6 +6,7 @@ pymongo
 python-dotenv
 gunicorn
 torch==2.1.0+cpu --extra-index-url https://download.pytorch.org/whl/cpu
+#torch==2.1.0
 python-jose[cryptography]
 passlib[bcrypt]
 azure-storage-blob
@@ -21,3 +22,5 @@ matplotlib
 beautifulsoup4
 requests
 
+selenium
+webdriver-manager

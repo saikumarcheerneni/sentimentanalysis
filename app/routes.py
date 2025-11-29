@@ -478,6 +478,8 @@ import io
 import time
 import pandas as pd
 import matplotlib.pyplot as plt
+from openpyxl import Workbook
+
 
 from datetime import datetime
 
@@ -508,16 +510,11 @@ from app.email_service import send_azure_email
 # Sentiment model
 from app.sentiment_service import analyze_text
 
-# URL review scraping
-from app.url_scraper import extract_reviews_from_url
-
-# Excel
+# Excel generation
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, Reference
 
-
 router = APIRouter()
-
 
 # -------------------------------------------------------------------------
 # AUTH TOKEN VALIDATION
@@ -534,9 +531,9 @@ def verify_token(token: str = Depends(oauth2_scheme)):
 
 
 # -------------------------------------------------------------------------
-# 1️⃣ FILE UPLOAD
+# 1️⃣ FILE UPLOAD  → POST /files
 # -------------------------------------------------------------------------
-@router.post("/upload", tags=["File Uploads"])
+@router.post("/files", tags=["Files"])
 async def upload_file(
     file: UploadFile = File(...),
     username: str = Depends(verify_token)
@@ -545,13 +542,11 @@ async def upload_file(
         raise HTTPException(400, "Only CSV files allowed")
 
     data = await file.read()
-
     file_id = str(uuid4())
     blob_path = f"{username}/uploads/{file_id}.csv"
 
     upload_bytes(data, blob_path)
 
-    # Log activity
     activity_collection.insert_one({
         "username": username,
         "event": "file_uploaded",
@@ -562,7 +557,6 @@ async def upload_file(
         "timestamp": datetime.utcnow(),
     })
 
-    # Store file metadata
     user_doc = users_collection.find_one({"username": username})
     email = user_doc["email"] if user_doc else None
 
@@ -580,9 +574,9 @@ async def upload_file(
 
 
 # -------------------------------------------------------------------------
-# 2️⃣ GET FILE INFO
+# 2️⃣ GET FILE INFO  → GET /files/{file_id}
 # -------------------------------------------------------------------------
-@router.get("/file", tags=["File Uploads"])
+@router.get("/files/{file_id}", tags=["Files"])
 def get_file_info(file_id: str, username: str = Depends(verify_token)):
     path = f"{username}/uploads/{file_id}.csv"
     try:
@@ -593,9 +587,9 @@ def get_file_info(file_id: str, username: str = Depends(verify_token)):
 
 
 # -------------------------------------------------------------------------
-# 3️⃣ DELETE FILE
+# 3️⃣ DELETE FILE  → DELETE /files/{file_id}
 # -------------------------------------------------------------------------
-@router.delete("/file", tags=["File Uploads"])
+@router.delete("/files/{file_id}", tags=["Files"])
 def delete_uploaded_file(file_id: str, username: str = Depends(verify_token)):
     blob_path = f"{username}/uploads/{file_id}.csv"
 
@@ -616,9 +610,9 @@ def delete_uploaded_file(file_id: str, username: str = Depends(verify_token)):
 
 
 # -------------------------------------------------------------------------
-# 4️⃣ LIST FILES
+# 4️⃣ LIST FILES  → GET /files
 # -------------------------------------------------------------------------
-@router.get("/list", tags=["File Uploads"])
+@router.get("/files", tags=["Files"])
 def list_files(username: str = Depends(verify_token)):
     upload_blobs = list_user_blobs(f"{username}/uploads/")
     summary_blobs = list_user_blobs(f"{username}/results/")
@@ -630,11 +624,10 @@ def list_files(username: str = Depends(verify_token)):
 
 
 # -------------------------------------------------------------------------
-# 5️⃣ TEXT ANALYSIS (SINGLE SENTENCE)
+# 5️⃣ ANALYZE TEXT  → POST /analyses
 # -------------------------------------------------------------------------
-@router.post("/analyze_text", tags=["Analyze"])
+@router.post("/analyses", tags=["Analyses"])
 def analyze_text_single(request: dict, username: str = Depends(verify_token)):
-
     text = request.get("text")
 
     existing = collection.find_one({"username": username, "text": text})
@@ -643,7 +636,6 @@ def analyze_text_single(request: dict, username: str = Depends(verify_token)):
 
     result = analyze_text(text)
 
-    # Save to DB
     user_doc = users_collection.find_one({"username": username})
 
     collection.insert_one({
@@ -659,9 +651,9 @@ def analyze_text_single(request: dict, username: str = Depends(verify_token)):
 
 
 # -------------------------------------------------------------------------
-# 6️⃣ VIEW TEXT HISTORY
+# 6️⃣ VIEW ANALYSIS HISTORY → GET /analyses
 # -------------------------------------------------------------------------
-@router.get("/history", tags=["Analyze"])
+@router.get("/analyses", tags=["Analyses"])
 def history(username: str = Depends(verify_token)):
     docs = list(collection.find(
         {"username": username},
@@ -671,9 +663,9 @@ def history(username: str = Depends(verify_token)):
 
 
 # -------------------------------------------------------------------------
-# 7️⃣ DELETE TEXT ENTRY
+# 7️⃣ DELETE TEXT ENTRY → DELETE /analyses/text
 # -------------------------------------------------------------------------
-@router.delete("/delete", tags=["Analyze"])
+@router.delete("/analyses/text", tags=["Analyses"])
 def delete_text(text: str, username: str = Depends(verify_token)):
     result = collection.delete_one({"username": username, "text": text})
     if result.deleted_count == 0:
@@ -682,13 +674,12 @@ def delete_text(text: str, username: str = Depends(verify_token)):
 
 
 # -------------------------------------------------------------------------
-# 8️⃣ ANALYZE FILE (CSV)
+# 8️⃣ ANALYZE FILE → POST /analyses/file/{file_id}
 # -------------------------------------------------------------------------
-@router.post("/analyze_file", tags=["Analyze"])
+@router.post("/analyses/file/{file_id}", tags=["Analyses"])
 def analyze_uploaded_file(file_id: str, username: str = Depends(verify_token)):
 
     start = time.time()
-
     csv_path = f"{username}/uploads/{file_id}.csv"
 
     try:
@@ -725,8 +716,7 @@ def analyze_uploaded_file(file_id: str, username: str = Depends(verify_token)):
 
     total = len(results)
 
-    # ---- Generate Excel report ----
-
+    # Excel report generation
     wb = Workbook()
     ws = wb.active
     ws.title = "Report Summary"
@@ -750,7 +740,6 @@ def analyze_uploaded_file(file_id: str, username: str = Depends(verify_token)):
         ws[f"B{i}"] = count
         ws[f"C{i}"] = round(count / total * 100, 2) if total else 0
 
-    # Chart
     chart = BarChart()
     values = Reference(ws, min_col=3, min_row=6, max_row=9)
     labels = Reference(ws, min_col=1, min_row=7, max_row=9)
@@ -770,7 +759,6 @@ def analyze_uploaded_file(file_id: str, username: str = Depends(verify_token)):
     summary_blob = f"{username}/results/{file_id}_summary.xlsx"
     upload_bytes(stream.read(), summary_blob)
 
-    # Email reporting
     user_doc = users_collection.find_one({"username": username})
     if user_doc:
         sas = generate_report_sas(summary_blob)
@@ -780,7 +768,6 @@ def analyze_uploaded_file(file_id: str, username: str = Depends(verify_token)):
             body=f"Your report is ready.\nDownload: {sas}"
         )
 
-    # Log activity
     activity_collection.insert_one({
         "username": username,
         "event": "file_analyzed",
@@ -788,7 +775,6 @@ def analyze_uploaded_file(file_id: str, username: str = Depends(verify_token)):
         "timestamp": datetime.utcnow()
     })
 
-    # Log performance
     latency = round((time.time() - start) * 1000, 3)
     performance_collection.insert_one({
         "type": "file_analysis_latency",
@@ -806,9 +792,9 @@ def analyze_uploaded_file(file_id: str, username: str = Depends(verify_token)):
 
 
 # -------------------------------------------------------------------------
-# 9️⃣ DOWNLOAD SUMMARY
+# 9️⃣ DOWNLOAD SUMMARY → GET /analyses/{file_id}/summary
 # -------------------------------------------------------------------------
-@router.get("/download", tags=["Analyze"])
+@router.get("/analyses/{file_id}/summary", tags=["Analyses"])
 def download_summary(file_id: str, username: str = Depends(verify_token)):
 
     blob = f"{username}/results/{file_id}_summary.xlsx"
@@ -825,9 +811,9 @@ def download_summary(file_id: str, username: str = Depends(verify_token)):
 
 
 # -------------------------------------------------------------------------
-# 🔟 DELETE SUMMARY
+# 🔟 DELETE SUMMARY → DELETE /analyses/{file_id}/summary
 # -------------------------------------------------------------------------
-@router.delete("/deleteresult", tags=["Analyze"])
+@router.delete("/analyses/{file_id}/summary", tags=["Analyses"])
 def delete_summary(file_id: str, username: str = Depends(verify_token)):
 
     blob = f"{username}/results/{file_id}_summary.xlsx"
@@ -840,9 +826,9 @@ def delete_summary(file_id: str, username: str = Depends(verify_token)):
 
 
 # -------------------------------------------------------------------------
-# 1️⃣1️⃣ GLOBAL LATENCY VIOLIN PLOT
+# 1️⃣1️⃣ PERFORMANCE PLOT → GET /metrics/performance
 # -------------------------------------------------------------------------
-@router.get("/performance", tags=["Performance"])
+@router.get("/metrics/performance", tags=["Performance"])
 def performance_violin(username: str = Depends(verify_token)):
 
     docs = list(performance_collection.find({"type": "file_analysis_latency"}))
@@ -866,9 +852,9 @@ def performance_violin(username: str = Depends(verify_token)):
 
 
 # -------------------------------------------------------------------------
-# 1️⃣2️⃣ URL PRODUCT REVIEW ANALYSIS
+# 1️⃣2️⃣ URL REVIEW ANALYSIS → POST /analyses/url
 # -------------------------------------------------------------------------
-@router.post("/analyze_url", tags=["Analyze"])
+@router.post("/analyses/url", tags=["Analyses"])
 def analyze_from_url(url: str, username: str = Depends(verify_token)):
 
     reviews = extract_reviews_from_url(url)
@@ -917,3 +903,36 @@ def analyze_from_url(url: str, username: str = Depends(verify_token)):
         "neutral": neu,
         "reviews": analyzed
     }
+from app.review_scraper import extract_reviews_from_url
+from fastapi.responses import StreamingResponse
+import csv
+import io
+
+@router.post("/reviews/extract", tags=["Review Extraction"])
+def extract_reviews_to_excel(
+    url: str,
+    max_pages: int = 5,
+    username: str = Depends(verify_token)
+):
+
+    reviews = extract_reviews_from_url(url, max_pages)
+
+    if not reviews:
+        raise HTTPException(400, "No reviews found across pages.")
+
+    # Create CSV file
+    stream = io.StringIO()
+    writer = csv.writer(stream)
+    writer.writerow(["text"])
+    for r in reviews:
+        writer.writerow([r])
+
+    stream.seek(0)
+
+    return StreamingResponse(
+        stream,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=extracted_reviews.csv"
+        }
+    )
