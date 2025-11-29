@@ -5,19 +5,10 @@ from typing import List, Dict, Any
 sentiment_model = None
 tokenizer = None
 
+MAX_TOKENS = 250   # prevent model crash
+
 
 def normalize_label(label: str) -> str:
-    """
-    Convert HuggingFace labels into standard format:
-        LABEL_0 → NEGATIVE
-        LABEL_1 → NEUTRAL
-        LABEL_2 → POSITIVE
-    
-    Or handle textual labels:
-        "negative" → NEGATIVE
-        "neutral" → NEUTRAL
-        "positive" → POSITIVE
-    """
     label = label.lower()
 
     if label in ["label_0", "negative"]:
@@ -27,14 +18,10 @@ def normalize_label(label: str) -> str:
     if label in ["label_2", "positive"]:
         return "POSITIVE"
 
-    return label.upper()  
+    return label.upper()
 
 
 def get_model():
-    """
-    Loads the HuggingFace multilingual RoBERTa sentiment model only once.
-    Prevents Azure cold-start slowdowns.
-    """
     global sentiment_model, tokenizer
     if sentiment_model is None:
         model_name = "cardiffnlp/twitter-xlm-roberta-base-sentiment"
@@ -49,34 +36,54 @@ def get_model():
     return sentiment_model
 
 
+def _truncate_text(text: str) -> str:
+    """
+    HARD FIX: Prevent XLM-R from crashing with long inputs.
+    """
+    # Convert to string
+    if not isinstance(text, str):
+        text = str(text)
+
+    # Tokenize to count tokens safely
+    tokens = tokenizer.encode(text, add_special_tokens=False)
+
+    # If too long → truncate tokens
+    if len(tokens) > MAX_TOKENS:
+        tokens = tokens[:MAX_TOKENS]
+        text = tokenizer.decode(tokens, skip_special_tokens=True)
+
+    return text
+
+
 def analyze_text(text: str) -> Dict[str, Any]:
     """
-    Analyze a single text and return:
-        {
-            "label": "POSITIVE/NEGATIVE/NEUTRAL",
-            "score": 0.998
-        }
+    SAFE SINGLE SENTENCE ANALYSIS
     """
     model = get_model()
+
+    # 👇 CRASH PREVENTION FIX
+    text = _truncate_text(text)
+
     result = model(text)[0]
-
-    normalized = normalize_label(result["label"])
-
     return {
-        "label": normalized,
+        "label": normalize_label(result["label"]),
         "score": float(result["score"])
     }
 
 
 def analyze_many(texts: List[str]) -> List[Dict[str, Any]]:
     """
-    Batch sentiment analysis for faster CSV processing.
+    SAFE BATCH PROCESSING FOR CSV FILES
     """
     if not texts:
         return []
 
     model = get_model()
-    outputs = model(texts)
+
+    # 👇 PREVENT CRASH BY TRUNCATING ALL TEXTS FIRST
+    cleaned = [_truncate_text(t) for t in texts]
+
+    outputs = model(cleaned)
 
     return [
         {
@@ -88,10 +95,6 @@ def analyze_many(texts: List[str]) -> List[Dict[str, Any]]:
 
 
 def build_summary(results: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Build summary stats used in Excel and email.
-    Automatically uses normalized labels.
-    """
     total = len(results)
     if total == 0:
         return {
@@ -106,7 +109,6 @@ def build_summary(results: List[Dict[str, Any]]) -> Dict[str, Any]:
     neg = sum(1 for r in results if r["label"] == "NEGATIVE")
     neu = sum(1 for r in results if r["label"] == "NEUTRAL")
 
-    # Determine overall sentiment
     if pos > neg:
         overall = "POSITIVE"
     elif neg > pos:
