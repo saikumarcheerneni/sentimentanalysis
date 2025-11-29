@@ -24,13 +24,9 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 EMAIL_TOKEN_EXPIRE_HOURS = 24
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/sessions")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 bearer_scheme = HTTPBearer()
 
-
-# ------------------------------------------------------------------------------------
-# HELPERS
-# ------------------------------------------------------------------------------------
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -45,10 +41,13 @@ def authenticate_user(identifier: str, password: str):
     user = users_collection.find_one(
         {"$or": [{"username": identifier}, {"email": identifier}]}
     )
+
     if not user:
         return None
+
     if not verify_password(password, user["hashed_password"]):
         return None
+
     return user
 
 
@@ -58,6 +57,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
         expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     to_encode.update({"exp": expire})
+
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
@@ -78,27 +78,27 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username = payload.get("sub")
+
         if username is None:
             raise HTTPException(401, "Invalid token")
+
     except JWTError:
         raise HTTPException(401, "Invalid token")
 
     user = users_collection.find_one({"username": username})
+
     if not user:
         raise HTTPException(401, "User not found")
+
     return user
 
 
-# ------------------------------------------------------------------------------------
-# USERS RESOURCE (REST)
-# ------------------------------------------------------------------------------------
-
-# Register user
-@router.post("/users", status_code=201)
+@router.post("/register", status_code=201)
 async def register(user: UserCreate):
     existing = users_collection.find_one(
         {"$or": [{"username": user.username}, {"email": user.email}]}
     )
+
     if existing:
         raise HTTPException(400, "Username or Email already registered")
 
@@ -119,24 +119,26 @@ async def register(user: UserCreate):
 
     return {
         "message": "User registered successfully. Please verify email.",
-        "verification_token": token
+        "verification_token": token,
     }
 
 
-# Email verification callback (hidden from docs)
-@router.get("/users/verify", include_in_schema=False)
+@router.get("/verify", include_in_schema=False)
 async def verify_email(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
         if payload.get("type") != "verification":
             raise HTTPException(400, "Invalid verification token")
 
         email = payload.get("sub")
+
         if not email:
             raise HTTPException(400, "Invalid email token")
 
         result = users_collection.update_one(
-            {"email": email}, {"$set": {"is_verified": True}}
+            {"email": email},
+            {"$set": {"is_verified": True}},
         )
 
         if result.matched_count == 0:
@@ -148,9 +150,8 @@ async def verify_email(token: str):
         raise HTTPException(400, "Invalid or expired token")
 
 
-# Manual email verification
-@router.post("/users/me/email/verification")
-async def verify_email_manual(token: str, current_user=Depends(get_current_user)):
+@router.post("/manual")
+async def verify_email_manual(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
 
@@ -158,12 +159,13 @@ async def verify_email_manual(token: str, current_user=Depends(get_current_user)
             raise HTTPException(400, "Invalid verification token")
 
         email = payload.get("sub")
+
         if not email:
             raise HTTPException(400, "Invalid email token")
 
         result = users_collection.update_one(
             {"email": email},
-            {"$set": {"is_verified": True}}
+            {"$set": {"is_verified": True}},
         )
 
         if result.matched_count == 0:
@@ -171,25 +173,39 @@ async def verify_email_manual(token: str, current_user=Depends(get_current_user)
 
         return {
             "message": "Email verified manually.",
-            "email": email
+            "email": email,
         }
 
     except JWTError:
         raise HTTPException(400, "Invalid or expired token")
 
 
-# Get my profile
-@router.get("/users/me")
-async def get_profile(current_user=Depends(get_current_user)):
-    return {
-        "username": current_user["username"],
-        "email": current_user["email"],
-        "is_verified": current_user["is_verified"]
-    }
+@router.post("/token")
+async def login(form: OAuth2PasswordRequestForm = Depends()):
+    # form.username = username OR email
+    user = authenticate_user(form.username, form.password)
+
+    if not user:
+        raise HTTPException(400, "Incorrect username or password")
+
+    if not user.get("is_verified"):
+        raise HTTPException(403, "Email not verified")
+
+    token = create_access_token({"sub": user["username"]})
+
+    return {"access_token": token, "token_type": "bearer"}
 
 
-# Update my profile
-@router.put("/users/me")
+@router.get("/verify")
+async def verify_token(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return {"valid": True, "user": payload.get("sub")}
+    except:
+        raise HTTPException(401, "Invalid token")
+
+
+@router.put("/update")
 async def update_profile(update: UserUpdate, current_user=Depends(get_current_user)):
     data = {}
 
@@ -197,9 +213,11 @@ async def update_profile(update: UserUpdate, current_user=Depends(get_current_us
         data["name"] = update.name
 
     if update.email:
+        # ensure email is unique
         exists = users_collection.find_one({"email": update.email})
         if exists and exists["username"] != current_user["username"]:
             raise HTTPException(400, "Email already in use")
+
         data["email"] = update.email
 
     if update.password:
@@ -214,8 +232,12 @@ async def update_profile(update: UserUpdate, current_user=Depends(get_current_us
     return {"message": "Profile updated successfully"}
 
 
-# Delete account
-@router.delete("/users/me")
+@router.post("/logout")
+async def logout(_: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
+    return {"message": "Logout successful (client must delete token)"}
+
+
+@router.delete("/delete")
 async def delete_account(current_user=Depends(get_current_user)):
     username = current_user["username"]
     email = current_user["email"]
@@ -230,35 +252,5 @@ async def delete_account(current_user=Depends(get_current_user)):
 
     return {
         "message": "Account and all files deleted successfully.",
-        "status": "success"
+        "status": "success",
     }
-
-
-# ------------------------------------------------------------------------------------
-# SESSIONS RESOURCE (REST)
-# ------------------------------------------------------------------------------------
-
-# Login (create session)
-@router.post("/sessions")
-async def login(form: OAuth2PasswordRequestForm = Depends()):
-    user = authenticate_user(form.username, form.password)
-    if not user:
-        raise HTTPException(400, "Incorrect username or password")
-
-    if not user.get("is_verified"):
-        raise HTTPException(403, "Email not verified")
-
-    token = create_access_token({"sub": user["username"]})
-    return {"access_token": token, "token_type": "bearer"}
-
-
-# Validate token (session)
-@router.get("/sessions/me")
-async def validate_session(current_user=Depends(get_current_user)):
-    return {"valid": True, "user": current_user["username"]}
-
-
-# Logout (client must delete token)
-@router.delete("/sessions/me")
-async def logout(_: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
-    return {"message": "Logout successful (client must delete token)"}
