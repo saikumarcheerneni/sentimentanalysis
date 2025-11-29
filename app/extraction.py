@@ -7,8 +7,6 @@ from bs4 import BeautifulSoup
 import re
 
 from app.auth import oauth2_scheme, jwt, SECRET_KEY, ALGORITHM
-from app.blob_service import upload_bytes
-from uuid import uuid4
 
 
 router = APIRouter()
@@ -57,11 +55,11 @@ def extract_generic_reviews(url: str):
             if len(cleaned.split()) > 3:
                 reviews.append(cleaned)
 
-    return list(set(reviews))  # remove duplicates
+    return list(set(reviews))
 
 
 # ---------------------------------------------------------
-# 2️⃣ AMAZON REVIEW SCRAPER (NON-SELENIUM VERSION)
+# 2️⃣ AMAZON REVIEW SCRAPER
 # ---------------------------------------------------------
 def extract_amazon_reviews(url: str):
     headers = {
@@ -102,16 +100,16 @@ def extract_flipkart_reviews(url: str):
 
 
 # ---------------------------------------------------------
-# EXCEL GENERATION
+# CSV GENERATION
 # ---------------------------------------------------------
-def generate_excel(reviews):
+def generate_csv(reviews):
     df = pd.DataFrame({"text": reviews})
 
-    stream = io.BytesIO()
-    df.to_excel(stream, index=False)
+    stream = io.StringIO()
+    df.to_csv(stream, index=False)
     stream.seek(0)
 
-    return stream
+    return io.BytesIO(stream.getvalue().encode("utf-8"))
 
 
 # =========================================================
@@ -122,19 +120,19 @@ def generate_excel(reviews):
 # 4️⃣ Extract GENERIC Reviews → POST /reviews/extract
 # ---------------------------------------------------------
 @router.post("/reviews/extract", tags=["Review Extraction"])
-def extract_to_excel(url: str, username: str = Depends(verify_token)):
+def extract_to_csv(url: str, username: str = Depends(verify_token)):
 
     reviews = extract_generic_reviews(url)
 
     if not reviews:
         raise HTTPException(400, "No reviews were found on this page")
 
-    excel_stream = generate_excel(reviews)
+    csv_stream = generate_csv(reviews)
 
     return StreamingResponse(
-        excel_stream,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=reviews.xlsx"}
+        csv_stream,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=reviews.csv"}
     )
 
 
@@ -142,19 +140,19 @@ def extract_to_excel(url: str, username: str = Depends(verify_token)):
 # 5️⃣ Extract Amazon Reviews → POST /reviews/amazon
 # ---------------------------------------------------------
 @router.post("/reviews/amazon", tags=["Review Extraction"])
-def extract_amazon_to_excel(url: str, username: str = Depends(verify_token)):
+def extract_amazon_to_csv(url: str, username: str = Depends(verify_token)):
 
     reviews = extract_amazon_reviews(url)
 
     if not reviews:
         raise HTTPException(400, "Could not scrape any Amazon reviews.")
 
-    excel_stream = generate_excel(reviews)
+    csv_stream = generate_csv(reviews)
 
     return StreamingResponse(
-        excel_stream,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=amazon_reviews.xlsx"}
+        csv_stream,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=amazon_reviews.csv"}
     )
 
 
@@ -162,17 +160,17 @@ def extract_amazon_to_excel(url: str, username: str = Depends(verify_token)):
 # 6️⃣ Extract Flipkart Reviews → POST /reviews/flipkart
 # ---------------------------------------------------------
 @router.post("/reviews/flipkart", tags=["Review Extraction"])
-def extract_flipkart_to_excel(url: str, username: str = Depends(verify_token)):
+def extract_flipkart_to_csv(url: str, username: str = Depends(verify_token)):
 
     reviews = extract_flipkart_reviews(url)
 
     if not reviews:
         raise HTTPException(400, "Could not scrape any Flipkart reviews.")
 
-    excel_stream = generate_excel(reviews)
+    csv_stream = generate_csv(reviews)
 
     return StreamingResponse(
-        excel_stream,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=flipkart_reviews.xlsx"}
+        csv_stream,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=flipkart_reviews.csv"}
     )
