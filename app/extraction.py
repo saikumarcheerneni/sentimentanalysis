@@ -5,6 +5,9 @@ import io
 import requests
 from bs4 import BeautifulSoup
 import re
+import os
+
+API_KEY = os.getenv("SCRAPER_API_KEY")
 
 from app.auth import oauth2_scheme, jwt, SECRET_KEY, ALGORITHM
 
@@ -62,41 +65,28 @@ def extract_generic_reviews(url: str):
 # 2️⃣ AMAZON REVIEW SCRAPER
 # ---------------------------------------------------------
 def extract_amazon_reviews(url: str):
-    headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Accept-Language": "en-US,en;q=0.9"
-    }
+    api_url = f"http://api.scraperapi.com/?api_key={API_KEY}&url={url}"
 
-    try:
-        resp = requests.get(url, headers=headers)
-        soup = BeautifulSoup(resp.text, "html.parser")
-    except Exception:
-        return []
+    resp = requests.get(api_url)
+    soup = BeautifulSoup(resp.text, "html.parser")
 
     review_blocks = soup.find_all("span", {"data-hook": "review-body"})
-    reviews = [clean(r.text) for r in review_blocks]
+    return [clean(r.text) for r in review_blocks]
 
-    return reviews
 
 
 # ---------------------------------------------------------
 # 3️⃣ FLIPKART SCRAPER
 # ---------------------------------------------------------
 def extract_flipkart_reviews(url: str):
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
+    api_url = f"http://api.scraperapi.com/?api_key={API_KEY}&country=IN&url={url}"
 
-    try:
-        resp = requests.get(url, headers=headers)
-        soup = BeautifulSoup(resp.text, "html.parser")
-    except Exception:
-        return []
+    resp = requests.get(api_url)
+    soup = BeautifulSoup(resp.text, "html.parser")
 
     review_divs = soup.find_all("div", {"class": "t-ZTKy"})
-    reviews = [clean(div.text.replace("READ MORE", "")) for div in review_divs]
+    return [clean(div.text.replace("READ MORE", "")) for div in review_divs]
 
-    return reviews
 
 
 # ---------------------------------------------------------
