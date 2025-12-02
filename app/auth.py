@@ -37,7 +37,6 @@ def get_password_hash(password: str) -> str:
 
 
 def authenticate_user(identifier: str, password: str):
-    """identifier can be username OR email"""
     user = users_collection.find_one(
         {"$or": [{"username": identifier}, {"email": identifier}]}
     )
@@ -74,7 +73,6 @@ def create_email_token(email: str):
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
-    """Validates the JWT and returns the user from DB."""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username = payload.get("sub")
@@ -93,7 +91,10 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     return user
 
 
-@router.post("/register", status_code=201)
+# -------------------------------------------------
+# REGISTER USER
+# -------------------------------------------------
+@router.post("/users", status_code=201)
 async def register(user: UserCreate):
     existing = users_collection.find_one(
         {"$or": [{"username": user.username}, {"email": user.email}]}
@@ -123,6 +124,7 @@ async def register(user: UserCreate):
     }
 
 
+# Email link verification (hidden)
 @router.get("/verify", include_in_schema=False)
 async def verify_email(token: str):
     try:
@@ -150,7 +152,10 @@ async def verify_email(token: str):
         raise HTTPException(400, "Invalid or expired token")
 
 
-@router.post("/manual")
+# -------------------------------------------------
+# MANUAL EMAIL VERIFY
+# -------------------------------------------------
+@router.post("/verify/manual")
 async def verify_email_manual(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -171,18 +176,17 @@ async def verify_email_manual(token: str):
         if result.matched_count == 0:
             raise HTTPException(404, "User not found")
 
-        return {
-            "message": "Email verified manually.",
-            "email": email,
-        }
+        return {"message": "Email verified manually.", "email": email}
 
     except JWTError:
         raise HTTPException(400, "Invalid or expired token")
 
 
+# -------------------------------------------------
+# LOGIN
+# -------------------------------------------------
 @router.post("/token")
 async def login(form: OAuth2PasswordRequestForm = Depends()):
-    # form.username = username OR email
     user = authenticate_user(form.username, form.password)
 
     if not user:
@@ -196,7 +200,10 @@ async def login(form: OAuth2PasswordRequestForm = Depends()):
     return {"access_token": token, "token_type": "bearer"}
 
 
-@router.get("/verify")
+# -------------------------------------------------
+# TOKEN VALIDATION
+# -------------------------------------------------
+@router.get("/auth/verify-token")
 async def verify_token(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -205,7 +212,10 @@ async def verify_token(token: str = Depends(oauth2_scheme)):
         raise HTTPException(401, "Invalid token")
 
 
-@router.put("/update")
+# -------------------------------------------------
+# UPDATE PROFILE
+# -------------------------------------------------
+@router.put("/user")
 async def update_profile(update: UserUpdate, current_user=Depends(get_current_user)):
     data = {}
 
@@ -213,11 +223,9 @@ async def update_profile(update: UserUpdate, current_user=Depends(get_current_us
         data["name"] = update.name
 
     if update.email:
-        # ensure email is unique
         exists = users_collection.find_one({"email": update.email})
         if exists and exists["username"] != current_user["username"]:
             raise HTTPException(400, "Email already in use")
-
         data["email"] = update.email
 
     if update.password:
@@ -232,12 +240,18 @@ async def update_profile(update: UserUpdate, current_user=Depends(get_current_us
     return {"message": "Profile updated successfully"}
 
 
+# -------------------------------------------------
+# LOGOUT
+# -------------------------------------------------
 @router.post("/logout")
 async def logout(_: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     return {"message": "Logout successful (client must delete token)"}
 
 
-@router.delete("/delete")
+# -------------------------------------------------
+# DELETE ACCOUNT
+# -------------------------------------------------
+@router.delete("/user")
 async def delete_account(current_user=Depends(get_current_user)):
     username = current_user["username"]
     email = current_user["email"]
@@ -250,7 +264,4 @@ async def delete_account(current_user=Depends(get_current_user)):
     delete_user_folder(username)
     send_goodbye_email(email)
 
-    return {
-        "message": "Account and all files deleted successfully.",
-        "status": "success",
-    }
+    return {"message": "Account and all files deleted successfully.", "status": "success"}
